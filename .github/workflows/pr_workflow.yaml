@@ -31,6 +31,7 @@ jobs:
       SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/petclinic
       SPRING_DATASOURCE_USERNAME: petclinic
       SPRING_DATASOURCE_PASSWORD: petclinic
+      SPRING_DOCKER_COMPOSE_SKIP_IN_TESTS: true
 
 
     steps:
@@ -79,6 +80,10 @@ jobs:
           vuln-type: os,library
           severity: CRITICAL,HIGH
 
-      - name: Push Docker image to Artifact Registry
+      - name: Tag and Push Docker image to Artifact Registry
         run: |
+          github_sha_hash=${{ github.sha }}
+          github_sha_short="${github_sha_hash:0:7}"
+          docker tag  $REGION-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPO_ID }}/:${{ github_sha_short }}
           docker push ${{ env.REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPO_ID }}/spring-petclinic:latest
+
