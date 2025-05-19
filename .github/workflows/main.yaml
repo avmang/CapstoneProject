@@ -49,7 +49,7 @@ jobs:
         run: |
           IMAGE=${{ env.REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPO_ID }}/spring-petclinic
           docker build -t $IMAGE:latest -t $IMAGE:${{ env.version }} .
-          docker push $IMAGE:latest
+          # docker push $IMAGE:latest
           docker push $IMAGE:${{ env.version }}
 
   deploy:
