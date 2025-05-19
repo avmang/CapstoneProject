@@ -94,4 +94,9 @@ jobs:
           IMAGE=${{ env.REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPO_ID }}/spring-petclinic
           echo "$IMAGE"
           SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+          echo "REGION=${REGION}"
+          echo "GCP_PROJECT_ID=${GCP_PROJECT_ID}"
+          echo "GAR_REPO_ID=${GAR_REPO_ID}"
+          echo "SHORT_SHA=${SHORT_SHA}"
+
           docker push $IMAGE:$SHORT_SHA
