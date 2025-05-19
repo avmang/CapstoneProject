@@ -45,7 +45,8 @@ jobs:
           cache: maven
 
       - name: Run Maven tests
-        run: mvn test
+        run: mvn test -Dspring.docker.compose.skip.in-tests=true
+
 
   build-scan-push:
     runs-on: ubuntu-latest
