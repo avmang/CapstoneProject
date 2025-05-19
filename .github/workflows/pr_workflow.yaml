@@ -4,9 +4,9 @@ on:
   pull_request:
   
 env:
-  GCP_PROJECT_ID: ${{ gcp_project_id }}
-  REGION: ${{ gcp_region }}
-  GAR_REPO_NAME: ${{ gar_repo_name }}
+  GCP_PROJECT_ID: $gcp_project_id
+  REGION: $gcp_region
+  GAR_REPO_NAME: $gar_repo_name 
 
 jobs:
   test:
