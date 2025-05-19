@@ -1,0 +1,62 @@
+name: PR workflow
+
+on:
+  pull_request:
+  
+env:
+  GCP_PROJECT_ID: ${{ gcp_project_id }}
+  REGION: ${{ gcp_region }}
+  GAR_REPO_NAME: ${{ gar_repo_name }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+    
+      - name: Run Tests
+        run: mvn test
+
+  build-scan-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: '${{ secrets.GOOGLE_CREDS }}'
+
+      - name: Configure Docker for GCR
+        run: |
+          gcloud auth configure-docker $REGION-docker.pkg.dev
+        working-directory: .
+
+      - name: Build Docker image
+        run: |
+          docker build -t $REGION-docker.pkg.dev/$GCP_PROJECT_ID/${{ env.gar_repo_name }}/spring-petclinic:latest .
+
+      - name: Scan Docker image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.gar_repo_name }}/spring-petclinic:latest
+          format: table
+          exit-code: 0
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: CRITICAL,HIGH
+
+      - name: Push Docker image to GCR
+        run: |
+          docker push $REGION-docker.pkg.dev/$GCP_PROJECT_ID/${{ env.gar_repo_name }}/spring-petclinic:latest
