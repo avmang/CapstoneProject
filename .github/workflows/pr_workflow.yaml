@@ -26,6 +26,12 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+    env:
+      SPRING_PROFILES_ACTIVE: postgres
+      SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/petclinic
+      SPRING_DATASOURCE_USERNAME: petclinic
+      SPRING_DATASOURCE_PASSWORD: petclinic
+
 
     steps:
       - uses: actions/checkout@v4
