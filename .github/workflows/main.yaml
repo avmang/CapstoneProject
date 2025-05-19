@@ -1,0 +1,98 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  REGION: ${{ secrets.GCP_REGION }}
+  GAR_REPO_ID: ${{ secrets.GAR_REPO_ID }}
+  GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  CLUSTER_NAME: ${{ secrets.CLUSTER_NAME }}
+  CLUSTER_ZONE: ${{ secrets.CLUSTER_ZONE }}
+  HELM_RELEASE: petclinic
+  HELM_CHART_DIR: ./helm/petclinic
+
+jobs:
+  build-and-tag:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install semver
+        run: pip install semver
+
+      - name: Generate Git Tag
+        id: tag
+        run: |
+          python semver_tag.py >> $GITHUB_ENV
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Authenticate with GCP
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GOOGLE_CREDENTIALS }}
+
+      - name: Configure Docker for GAR
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+
+      - name: Build and Push Image
+        run: |
+          IMAGE=${{ env.REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPO_ID }}/spring-petclinic
+          docker build -t $IMAGE:latest -t $IMAGE:${{ env.version }} .
+          docker push $IMAGE:latest
+          docker push $IMAGE:${{ env.version }}
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build-and-tag
+    if: github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Authenticate with GCP
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GOOGLE_CREDENTIALS }}
+
+      - name: Get GKE credentials
+        run: gcloud container clusters get-credentials $CLUSTER_NAME --zone $CLUSTER_ZONE --project $GCP_PROJECT_ID
+
+      - name: Helm Upgrade
+        run: |
+          helm upgrade --install $HELM_RELEASE $HELM_CHART_DIR \
+            --set image.tag=${{ env.version }} \
+            --set image.repository=${{ env.REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPO_ID }}/spring-petclinic
+
+      - name: Wait for External IP & Print App Link in Summary
+        run: |
+          echo "Waiting for external IP to become available..."
+          for i in {1..20}; do
+            NODE_IP=$(kubectl get svc $HELM_RELEASE --namespace mavoyan --output=jsonpath='{.status.loadBalancer.ingress[0].ip}')
+            if [[ -n "$NODE_IP" ]]; then
+              break
+            fi
+            echo "Still waiting for external IP... ($i)"
+            sleep 10
+          done
+
+          if [[ -n "$NODE_IP" ]]; then
+            echo "✅ App is available at: http://$NODE_IP"
+            echo "::notice title=App URL::http://$NODE_IP"
+            echo "### 🚀 Application Deployed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "- App URL: [http://$NODE_IP](http://$NODE_IP)" >> $GITHUB_STEP_SUMMARY
+            echo "- Hostname (if mapped): [http://chart-example.local](http://chart-example.local)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Failed to retrieve external IP after waiting." >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
