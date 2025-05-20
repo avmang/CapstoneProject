@@ -33,9 +33,10 @@ jobs:
       - name: Generate Git Tag
         id: tag
         run: |
-          python semver_tag.py >> $GITHUB_ENV
+            VERSION=$(python semver_tag.py)
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: Authenticate with GCP
         uses: google-github-actions/auth@v1
@@ -48,8 +49,8 @@ jobs:
       - name: Build and Push Image
         run: |
           IMAGE=${{ env.REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPO_ID }}/spring-petclinic
-          docker build -t $IMAGE:latest -t $IMAGE:${{ env.version }} .
-          docker push $IMAGE:${{ env.version }}
+          docker build -t $IMAGE:latest -t $IMAGE:${{ steps.tag.outputs.version }} .
+          docker push $IMAGE:${{ steps.tag.outputs.version }}
 
   deploy:
     runs-on: ubuntu-latest
