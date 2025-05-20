@@ -74,7 +74,12 @@ jobs:
 
       - name: Get GKE credentials
         run: gcloud container clusters get-credentials $CLUSTER_NAME --region $REGION --project $GCP_PROJECT_ID
-
+    
+      - name: Install gke-gcloud-auth-plugin
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y google-cloud-sdk-gke-gcloud-auth-plugin
+          
       - name: Helm Upgrade
         run: |
           helm upgrade --install $HELM_RELEASE $HELM_CHART_DIR \
