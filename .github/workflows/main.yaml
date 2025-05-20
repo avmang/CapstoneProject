@@ -65,10 +65,12 @@ jobs:
     needs: build-and-tag
 
     steps:
-      - name: Authenticate to Google Cloud
+      - name: Authenticate to GCP
         uses: google-github-actions/auth@v1
         with:
-          credentials_json: '${{ secrets.GOOGLE_CREDENTIALS }}'
+          token_format: 'access_token'
+          workload_identity_provider: 'projects/999898490929/locations/global/workloadIdentityPools/github-pool/providers/github-provider'
+          service_account: 'mavoyan-github-actions@capstoneproject-460317.iam.gserviceaccount.com'
 
       - name: Get GKE credentials
         run: gcloud container clusters get-credentials $CLUSTER_NAME --region $REGION --project gd-gcp-internship-devops
