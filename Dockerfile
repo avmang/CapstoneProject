@@ -9,7 +9,7 @@ COPY src ./src
 
 RUN mvn clean install -DskipTests
 
-FROM eclipse-temurin:17-jdk AS runtime
+FROM eclipse-temurin:17-jdk AS runtime 
 
 RUN groupadd -r appgroup && \
     useradd -r -g appgroup appuser
