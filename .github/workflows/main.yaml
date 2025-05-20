@@ -18,14 +18,14 @@ jobs:
   build-and-tag:
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.tag.outputs.version }}
+        version: ${{ steps.tag.outputs.version }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0
-          token: ${{ secrets.GH_TOKEN }}
+            fetch-depth: 0
+            token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -38,10 +38,7 @@ jobs:
       - name: Generate Git Tag
         id: tag
         run: |
-          VERSION=$(python semver_tag.py)
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+            python semver_tag.py
 
       - name: Authenticate with GCP
         uses: google-github-actions/auth@v1
@@ -54,7 +51,7 @@ jobs:
       - name: Build and Push Image
         run: |
           IMAGE=${{ env.REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPO_ID }}/spring-petclinic
-          docker build -t $IMAGE:latest -t $IMAGE:${{ steps.tag.outputs.version }} .
+          docker build -t $IMAGE:${{ steps.tag.outputs.version }} .
           docker push $IMAGE:${{ steps.tag.outputs.version }}
 
   deploy:
