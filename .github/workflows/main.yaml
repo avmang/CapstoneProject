@@ -14,7 +14,7 @@ env:
   GAR_REPO_ID: ${{ secrets.GAR_REPO_ID }}
   GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   CLUSTER_NAME: ${{ secrets.CLUSTER_NAME }}
-  CLUSTER_ZONE: ${{ secrets.CLUSTER_ZONE }}
+#   CLUSTER_ZONE: ${{ secrets.CLUSTER_ZONE }}
   HELM_RELEASE: petclinic
   HELM_CHART_DIR: ./helm/petclinic
 
@@ -64,18 +64,15 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: build-and-tag
-    if: github.event_name == 'workflow_dispatch'
 
     steps:
-      - name: Authenticate to GCP
+      - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v1
         with:
-          token_format: 'access_token'
-          workload_identity_provider: 'projects/999898490929/locations/global/workloadIdentityPools/github-pool/providers/github-provider'
-          service_account: 'mavoyan-github-actions@capstoneproject-460317.iam.gserviceaccount.com'
+          credentials_json: '${{ secrets.GOOGLE_CREDENTIALS }}'
 
       - name: Get GKE credentials
-        run: gcloud container clusters get-credentials $CLUSTER_NAME --zone $CLUSTER_ZONE --project $GCP_PROJECT_ID
+        run: gcloud container clusters get-credentials $CLUSTER_NAME --region $REGION --project $GCP_PROJECT_ID
 
       - name: Helm Upgrade
         run: |
