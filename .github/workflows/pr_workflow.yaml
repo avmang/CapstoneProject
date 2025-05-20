@@ -48,7 +48,7 @@ jobs:
           mvn verify sonar:sonar \
             -Dsonar.login=$SONAR_TOKEN \
             -Dsonar.host.url=http://34.71.18.163:9000
-            -Dcheckstyle.skip=true
+            -Dcheckstyle.skipExec=true
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
