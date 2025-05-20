@@ -17,10 +17,15 @@ env:
 jobs:
   build-and-tag:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.tag.outputs.version }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GH_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -33,10 +38,10 @@ jobs:
       - name: Generate Git Tag
         id: tag
         run: |
-            VERSION=$(python semver_tag.py)
-            echo "version=$VERSION" >> $GITHUB_OUTPUT
+          VERSION=$(python semver_tag.py)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
         env:
-            GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: Authenticate with GCP
         uses: google-github-actions/auth@v1
@@ -69,7 +74,7 @@ jobs:
       - name: Helm Upgrade
         run: |
           helm upgrade --install $HELM_RELEASE $HELM_CHART_DIR \
-            --set image.tag=${{ env.version }} \
+            --set image.tag=${{ needs.build-and-tag.outputs.version }} \
             --set image.repository=${{ env.REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPO_ID }}/spring-petclinic
 
       - name: Wait for External IP & Print App Link in Summary
@@ -85,14 +90,13 @@ jobs:
           done
 
           if [[ -n "$NODE_IP" ]]; then
-            echo "✅ App is available at: http://$NODE_IP"
+            echo "App is available at: http://$NODE_IP"
             echo "::notice title=App URL::http://$NODE_IP"
-            echo "### 🚀 Application Deployed" >> $GITHUB_STEP_SUMMARY
+            echo "Application Deployed" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "- App URL: [http://$NODE_IP](http://$NODE_IP)" >> $GITHUB_STEP_SUMMARY
             echo "- Hostname (if mapped): [http://chart-example.local](http://chart-example.local)" >> $GITHUB_STEP_SUMMARY
           else
-            echo "❌ Failed to retrieve external IP after waiting." >> $GITHUB_STEP_SUMMARY
+            echo "Failed to retrieve external IP after waiting." >> $GITHUB_STEP_SUMMARY
             exit 1
           fi
-
