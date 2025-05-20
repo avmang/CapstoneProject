@@ -14,7 +14,6 @@ env:
   GAR_REPO_ID: ${{ secrets.GAR_REPO_ID }}
   GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   CLUSTER_NAME: ${{ secrets.CLUSTER_NAME }}
-#   CLUSTER_ZONE: ${{ secrets.CLUSTER_ZONE }}
   HELM_RELEASE: petclinic
   HELM_CHART_DIR: ./helm/petclinic
 
@@ -72,7 +71,7 @@ jobs:
           credentials_json: '${{ secrets.GOOGLE_CREDENTIALS }}'
 
       - name: Get GKE credentials
-        run: gcloud container clusters get-credentials $CLUSTER_NAME --region $REGION --project $GCP_PROJECT_ID
+        run: gcloud container clusters get-credentials $CLUSTER_NAME --region $REGION --project gd-gcp-internship-devops
 
       - name: Helm Upgrade
         run: |
