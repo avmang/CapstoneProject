@@ -73,7 +73,12 @@ jobs:
           service_account: 'mavoyan-github-actions@capstoneproject-460317.iam.gserviceaccount.com'
 
       - name: Get GKE credentials
-        run: gcloud container clusters get-credentials $CLUSTER_NAME --region $REGION --project $GCP_PROJECT_ID
+        uses: google-github-actions/get-gke-credentials@v1
+        with:
+          cluster_name: ${{ env.CLUSTER_NAME }}
+          location: ${{ env.REGION }}
+          project_id: ${{ env.GCP_PROJECT_ID }}
+
 
       - name: Helm Upgrade
         run: |
