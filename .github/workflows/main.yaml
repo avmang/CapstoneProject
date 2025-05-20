@@ -5,6 +5,10 @@ on:
     branches:
       - main
 
+permissions:
+  id-token: write
+  contents: read
+
 env:
   REGION: ${{ secrets.GCP_REGION }}
   GAR_REPO_ID: ${{ secrets.GAR_REPO_ID }}
