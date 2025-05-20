@@ -86,7 +86,7 @@ jobs:
           IMAGE=${{ env.REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPO_ID }}/spring-petclinic
           SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
           docker build -t $IMAGE:latest -t $IMAGE:$SHORT_SHA .
-
+          
       - name: Scan Docker image with Trivy
         uses: aquasecurity/trivy-action@master
         with:

@@ -40,13 +40,16 @@ jobs:
         run: |
             python semver_tag.py
 
-      - name: Authenticate with GCP
+      - name: Authenticate to GCP
         uses: google-github-actions/auth@v1
         with:
-          credentials_json: ${{ secrets.GOOGLE_CREDENTIALS }}
+          token_format: 'access_token'
+          workload_identity_provider: 'projects/999898490929/locations/global/workloadIdentityPools/github-pool/providers/github-provider'
+          service_account: 'mavoyan-github-actions@capstoneproject-460317.iam.gserviceaccount.com'
 
-      - name: Configure Docker for GAR
-        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+      - name: Configure Docker for Artifact Registry
+        run: |
+          gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
 
       - name: Build and Push Image
         run: |
@@ -60,10 +63,12 @@ jobs:
     if: github.event_name == 'workflow_dispatch'
 
     steps:
-      - name: Authenticate with GCP
+      - name: Authenticate to GCP
         uses: google-github-actions/auth@v1
         with:
-          credentials_json: ${{ secrets.GOOGLE_CREDENTIALS }}
+          token_format: 'access_token'
+          workload_identity_provider: 'projects/999898490929/locations/global/workloadIdentityPools/github-pool/providers/github-provider'
+          service_account: 'mavoyan-github-actions@capstoneproject-460317.iam.gserviceaccount.com'
 
       - name: Get GKE credentials
         run: gcloud container clusters get-credentials $CLUSTER_NAME --zone $CLUSTER_ZONE --project $GCP_PROJECT_ID
