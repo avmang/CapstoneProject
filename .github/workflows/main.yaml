@@ -128,4 +128,6 @@ jobs:
               --set image.repository=$IMAGE \
               --set image.tag=$VERSION
       
+
             echo "✅ Petclinic should be available soon at: http://$INGRESS_IP"
+
