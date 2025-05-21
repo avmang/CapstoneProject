@@ -16,7 +16,6 @@ env:
   GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   CLUSTER_NAME: ${{ secrets.CLUSTER_NAME }}
   HELM_RELEASE: petclinic
-  HELM_CHART_DIR: ~/helm
   IMAGE_NAME: spring-petclinic
 
 jobs:
@@ -28,9 +27,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -43,18 +39,18 @@ jobs:
       - name: Generate Git Tag
         id: tag
         run: |
-          python semver_tag.py  # this should export version to GitHub env
+          VERSION="0.1.0"  # Replace this with dynamic versioning if needed
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v1
         with:
           token_format: 'access_token'
-          workload_identity_provider: 'projects/999898490929/locations/global/workloadIdentityPools/github-pool/providers/github-provider'
-          service_account: 'mavoyan-github-actions@capstoneproject-460317.iam.gserviceaccount.com'
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
       - name: Configure Docker for Artifact Registry
-        run: |
-          gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
 
       - name: Build and Push Docker Image
         run: |
@@ -67,6 +63,12 @@ jobs:
     needs: build-and-tag
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Debug Helm chart path
+        run: ls -la ./helm && ls -la ./helm/petclinic
+
       - name: Copy Helm chart to VM
         uses: appleboy/scp-action@v0.1.4
         with:
@@ -75,8 +77,8 @@ jobs:
           key: ${{ secrets.VM_SSH_KEY }}
           source: "./helm/petclinic"
           target: "~/helm"
-    
-      - name: SSH into GCE and deploy Helm
+
+      - name: SSH into GCE and deploy Helm with Ingress
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.VM_EXTERNAL_IP }}
@@ -87,28 +89,35 @@ jobs:
             export REGION=${{ env.REGION }}
             export GCP_PROJECT_ID=${{ env.GCP_PROJECT_ID }}
             export HELM_RELEASE=${{ env.HELM_RELEASE }}
-            export HELM_CHART_DIR=${{ env.HELM_CHART_DIR }}
+            export HELM_CHART_DIR=~/helm/petclinic
             export VERSION=${{ needs.build-and-tag.outputs.version }}
             export IMAGE=${{ env.REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPO_ID }}/${{ env.IMAGE_NAME }}
 
             echo "Authenticating to GKE..."
             gcloud container clusters get-credentials $CLUSTER_NAME --region $REGION --project $GCP_PROJECT_ID
 
-            echo "Deploying Helm chart..."
-            helm upgrade --install $HELM_RELEASE $HELM_CHART_DIR \
-              --set image.tag=$VERSION \
-              --set image.repository=$IMAGE
+            echo "Installing NGINX Ingress Controller via Helm..."
+            helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+            helm repo update
+            helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+              --namespace ingress-nginx \
+              --create-namespace
 
-            echo "Waiting for External IP..."
-            for i in {1..20}; do
-              NODE_IP=$(kubectl get svc $HELM_RELEASE --namespace mavoyan --output=jsonpath='{.status.loadBalancer.ingress[0].ip}')
-              if [[ -n "$NODE_IP" ]]; then break; fi
+            echo "Waiting for Ingress Controller IP..."
+            for i in {1..30}; do
+              INGRESS_IP=$(kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath="{.status.loadBalancer.ingress[0].ip}" 2>/dev/null || true)
+              if [[ -n "$INGRESS_IP" ]]; then break; fi
               sleep 10
             done
 
-            if [[ -n "$NODE_IP" ]]; then
-              echo "Application available at http://$NODE_IP"
-            else
-              echo "External IP not assigned." >&2
+            if [[ -z "$INGRESS_IP" ]]; then
+              echo "❌ Ingress controller did not get an IP." >&2
               exit 1
             fi
+
+            echo "Deploying Helm chart..."
+            helm upgrade --install $HELM_RELEASE $HELM_CHART_DIR \
+              --set image.repository=$IMAGE \
+              --set image.tag=$VERSION
+
+            echo "✅ Application should be available soon at: http://$INGRESS_IP"
