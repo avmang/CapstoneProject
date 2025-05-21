@@ -91,8 +91,10 @@ jobs:
             export GCP_PROJECT_ID=${{ env.GCP_PROJECT_ID }}
             export HELM_RELEASE=${{ env.HELM_RELEASE }}
             export HELM_CHART_DIR=~/helm/petclinic
+            export GAR_REPO_ID=${{ env.GAR_REPO_ID }}
+            export IMAGE_NAME=${{ env.IMAGE_NAME }}
             export VERSION=${{ needs.build-and-tag.outputs.version }}
-            export IMAGE=europe-north1-docker.pkg.dev/capstoneproject-460317/mavoyan-spring-petclinic-repository/spring-petclinic
+            export IMAGE="${REGION}-docker.pkg.dev/${GCP_PROJECT_ID}/${GAR_REPO_ID}/${IMAGE_NAME}"
 
             echo "Authenticating to GKE..."
             gcloud container clusters get-credentials $CLUSTER_NAME --region $REGION --project $GCP_PROJECT_ID
