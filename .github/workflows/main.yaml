@@ -16,7 +16,7 @@ env:
   GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   CLUSTER_NAME: ${{ secrets.CLUSTER_NAME }}
   HELM_RELEASE: petclinic
-  HELM_CHART_DIR: ./helm/petclinic
+  HELM_CHART_DIR: ~/helm
   IMAGE_NAME: spring-petclinic
 
 jobs:
@@ -67,6 +67,15 @@ jobs:
     needs: build-and-tag
 
     steps:
+      - name: Copy Helm chart to VM
+        uses: appleboy/scp-action@v0.1.4
+        with:
+          host: ${{ secrets.VM_EXTERNAL_IP }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          source: "./helm/petclinic"
+          target: "~/helm"
+    
       - name: SSH into GCE and deploy Helm
         uses: appleboy/ssh-action@v1.0.0
         with:
