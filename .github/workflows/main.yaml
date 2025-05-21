@@ -79,8 +79,8 @@ jobs:
           host: ${{ secrets.VM_EXTERNAL_IP }}
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.VM_SSH_KEY }}
-          source: "./helm/petclinic"
-          target: "~/helm"
+          source: "helm"        
+          target: "~" 
 
       - name: SSH into GCE and deploy Helm with Ingress
         if: false
