@@ -96,32 +96,40 @@ jobs:
             export HELM_CHART_DIR=~/helm/petclinic
             export VERSION=${{ needs.build-and-tag.outputs.version }}
             export IMAGE=${{ env.REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPO_ID }}/${{ env.IMAGE_NAME }}
-
+      
             echo "Authenticating to GKE..."
             gcloud container clusters get-credentials $CLUSTER_NAME --region $REGION --project $GCP_PROJECT_ID
-
-            echo "Installing NGINX Ingress Controller via Helm..."
+      
+            echo "Installing NGINX Ingress Controller (if needed)..."
             helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
             helm repo update
-            helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
-              --namespace ingress-nginx \
-              --create-namespace
-
-            echo "Waiting for Ingress Controller IP..."
+      
+            if ! helm status ingress-nginx -n ingress-nginx > /dev/null 2>&1; then
+              helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+                --namespace ingress-nginx \
+                --create-namespace
+            else
+              echo "Ingress already installed. Skipping."
+            fi
+      
+            echo "Waiting for Ingress Controller External IP..."
             for i in {1..30}; do
               INGRESS_IP=$(kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath="{.status.loadBalancer.ingress[0].ip}" 2>/dev/null || true)
               if [[ -n "$INGRESS_IP" ]]; then break; fi
               sleep 10
             done
-
+      
             if [[ -z "$INGRESS_IP" ]]; then
-              echo "❌ Ingress controller did not get an IP." >&2
+              echo "❌ Ingress controller did not get an external IP." >&2
               exit 1
             fi
-
-            echo "Deploying Helm chart..."
+      
+            echo "Deploying Petclinic Helm chart..."
             helm upgrade --install $HELM_RELEASE $HELM_CHART_DIR \
+              --namespace mavoyan \
+              --create-namespace \
               --set image.repository=$IMAGE \
               --set image.tag=$VERSION
-
-            echo "✅ Application should be available soon at: http://$INGRESS_IP"
+      
+            echo "✅ Petclinic should be available soon at: http://$INGRESS_IP"
+      
