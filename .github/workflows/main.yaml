@@ -126,12 +126,6 @@ jobs:
             fi
 
             echo "Deploying Helm chart with image $IMAGE:$VERSION"
-            helm upgrade --install $HELM_RELEASE $HELM_CHART_DIR \
-              --namespace mavoyan \
-              --create-namespace \
-              --set image.repository=$IMAGE \
-              --set image.tag=$VERSION \
-              --set ingress.enabled=true \
-              --set ingress.className=nginx
+            helm upgrade --install $HELM_RELEASE $HELM_CHART_DIR
 
             echo "✅ Application should be available soon at: http://$INGRESS_IP"
