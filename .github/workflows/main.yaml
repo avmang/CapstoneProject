@@ -83,6 +83,7 @@ jobs:
           target: "~/helm"
 
       - name: SSH into GCE and deploy Helm with Ingress
+        if: false
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.VM_EXTERNAL_IP }}
