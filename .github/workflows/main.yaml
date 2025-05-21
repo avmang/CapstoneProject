@@ -24,13 +24,13 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.tag.outputs.version }}
+      image: ${{ steps.build.outputs.image }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -43,7 +43,9 @@ jobs:
       - name: Generate Git Tag
         id: tag
         run: |
-          python semver_tag.py  # this should export version to GitHub env
+          VERSION=$(python semver_tag.py)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v1
         with:
@@ -54,11 +56,16 @@ jobs:
       - name: Configure Docker for Artifact Registry
         run: |
           gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+
       - name: Build and Push Docker Image
+        id: build
         run: |
           IMAGE=${{ env.REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPO_ID }}/${{ env.IMAGE_NAME }}
-          docker build -t $IMAGE:${{ steps.tag.outputs.version }} .
-          docker push $IMAGE:${{ steps.tag.outputs.version }}
+          VERSION=${{ steps.tag.outputs.version }}
+          docker build -t $IMAGE:$VERSION .
+          docker push $IMAGE:$VERSION
+          echo "image=$IMAGE" >> $GITHUB_OUTPUT
+
   deploy:
     runs-on: ubuntu-latest
     needs: build-and-tag
@@ -76,10 +83,10 @@ jobs:
           host: ${{ secrets.VM_EXTERNAL_IP }}
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.VM_SSH_KEY }}
-          source: "helm"        
-          target: "~" 
+          source: "helm"
+          target: "~"
 
-      - name: SSH into GCE and deploy Helm with Ingress
+      - name: SSH into GCE and deploy Helm
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.VM_EXTERNAL_IP }}
@@ -91,43 +98,40 @@ jobs:
             export GCP_PROJECT_ID=${{ env.GCP_PROJECT_ID }}
             export HELM_RELEASE=${{ env.HELM_RELEASE }}
             export HELM_CHART_DIR=~/helm/petclinic
+            export IMAGE=${{ needs.build-and-tag.outputs.image }}
             export VERSION=${{ needs.build-and-tag.outputs.version }}
-            export IMAGE=europe-north1-docker.pkg.dev/capstoneproject-460317/mavoyan-spring-petclinic-repository/spring-petclinic
 
             echo "Authenticating to GKE..."
             gcloud container clusters get-credentials $CLUSTER_NAME --region $REGION --project $GCP_PROJECT_ID
-      
-            echo "Installing NGINX Ingress Controller (if needed)..."
+
+            echo "Installing Ingress Controller (if needed)..."
             helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
             helm repo update
-      
+
             if ! helm status ingress-nginx -n ingress-nginx > /dev/null 2>&1; then
               helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
-                --namespace ingress-nginx \
-                --create-namespace
-            else
-              echo "Ingress already installed. Skipping."
+                --namespace ingress-nginx --create-namespace
             fi
-      
-            echo "Waiting for Ingress Controller External IP..."
+
+            echo "Waiting for Ingress IP..."
             for i in {1..30}; do
               INGRESS_IP=$(kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath="{.status.loadBalancer.ingress[0].ip}" 2>/dev/null || true)
               if [[ -n "$INGRESS_IP" ]]; then break; fi
               sleep 10
             done
-      
+
             if [[ -z "$INGRESS_IP" ]]; then
               echo "❌ Ingress controller did not get an external IP." >&2
               exit 1
             fi
-      
-            echo "Deploying Petclinic Helm chart..."
+
+            echo "Deploying Helm chart with image $IMAGE:$VERSION"
             helm upgrade --install $HELM_RELEASE $HELM_CHART_DIR \
               --namespace mavoyan \
               --create-namespace \
               --set image.repository=$IMAGE \
-              --set image.tag=$VERSION
-      
+              --set image.tag=$VERSION \
+              --set ingress.enabled=true \
+              --set ingress.className=nginx
 
-            echo "✅ Petclinic should be available soon at: http://$INGRESS_IP"
-
+            echo "✅ Application should be available soon at: http://$INGRESS_IP"
