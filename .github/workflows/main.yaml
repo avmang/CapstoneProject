@@ -16,6 +16,7 @@ env:
   GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   CLUSTER_NAME: ${{ secrets.CLUSTER_NAME }}
   HELM_RELEASE: petclinic
+  HELM_CHART_DIR: ./helm/petclinic
   IMAGE_NAME: spring-petclinic
 
 jobs:
@@ -27,6 +28,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -39,18 +43,18 @@ jobs:
       - name: Generate Git Tag
         id: tag
         run: |
-          VERSION="0.1.0"  # Replace this with dynamic versioning if needed
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          python semver_tag.py  # this should export version to GitHub env
 
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v1
         with:
           token_format: 'access_token'
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          workload_identity_provider: 'projects/999898490929/locations/global/workloadIdentityPools/github-pool/providers/github-provider'
+          service_account: 'mavoyan-github-actions@capstoneproject-460317.iam.gserviceaccount.com'
 
       - name: Configure Docker for Artifact Registry
-        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+        run: |
+          gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
 
       - name: Build and Push Docker Image
         run: |
