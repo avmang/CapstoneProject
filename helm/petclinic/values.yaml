@@ -1,9 +1,11 @@
 replicaCount: 1
 
 image:
-  repository: europe-north1-docker.pkg.dev/capstoneproject-460317/mavoyan-spring-petclinic-repository/spring-petclinic
+  # repository: europe-north1-docker.pkg.dev/capstoneproject-460317/mavoyan-spring-petclinic-repository/spring-petclinic
+  repository: avmang/spring-deploy-test
   pullPolicy: IfNotPresent
-  tag: "0.1.0"
+  # tag: "0.1.0"
+  tag: "latest"
 
 imagePullSecrets: []
 
@@ -34,7 +36,7 @@ env:
   - name: SPRING_PROFILES_ACTIVE
     value: postgres
   - name: SPRING_DATASOURCE_URL
-    value: jdbc:postgresql://127.0.0.1:5432/petclinic
+    value: jdbc:postgresql://34.88.187.43:5432/petclinic
   - name: SPRING_DATASOURCE_USERNAME
     valueFrom:
       secretKeyRef:

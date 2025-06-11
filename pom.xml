@@ -60,6 +60,12 @@
 
   <dependencies>
     <!-- Spring and Spring Boot dependencies -->
+    <!-- added by me 64-67 -->
+    <dependency> 
+      <groupId>org.postgresql</groupId>
+      <artifactId>postgresql</artifactId>
+      <version>42.7.3</version>
+    </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-actuator</artifactId>
