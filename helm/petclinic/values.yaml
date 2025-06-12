@@ -1,0 +1,137 @@
+replicaCount: 1
+
+image:
+  repository: europe-north1-docker.pkg.dev/capstoneproject-460317/mavoyan-spring-petclinic-repository/spring-petclinic
+  pullPolicy: IfNotPresent
+  tag: "0.1.0"
+
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: false
+  automount: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podLabels: {
+  app: petclinic
+}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+service:
+  type: NodePort
+  port: 80
+  targetPort: 8080
+
+env:
+  - name: SPRING_PROFILES_ACTIVE
+    value: postgres
+  - name: SPRING_DATASOURCE_URL
+    value: jdbc:postgresql://127.0.0.1:5432/petclinic
+  - name: SPRING_DATASOURCE_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: demo-db
+        key: username
+  - name: SPRING_DATASOURCE_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: demo-db
+        key: password
+
+ingress:
+  enabled: true
+  className: ""
+  annotations: {}
+  hosts:
+    - host: chart-example.local
+      paths:
+        - path: "/"
+          pathType: ImplementationSpecific
+  tls: []
+
+resources: {}
+
+livenessProbe:
+  httpGet:
+    path: /actuator/health
+    port: 8080
+  initialDelaySeconds: 20
+  periodSeconds: 10
+  timeoutSeconds: 2
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /actuator/health
+    port: 8080
+  initialDelaySeconds: 20
+  periodSeconds: 10
+  timeoutSeconds: 2
+  failureThreshold: 3
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+
+volumes:
+  - name: binding
+    projected:
+      sources:
+        - secret:
+            name: demo-db
+
+volumeMounts:
+  - mountPath: /bindings/secret
+    name: binding
+    readOnly: true
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+db:
+  name: demo-db
+  labels: 
+    app: demo-db
+  matchLabels: demo-db
+  storage:
+    size: 8Gi
+    class: standard
+  containers: 
+    image: postgres:17
+    name: postgresql
+    secretName: demo-db
+    containerPort: 5432
+    portname: postgresql 
+  livenessProbe:
+    tcpSocket:
+      port: postgresql
+  readinessProbe:
+    tcpSocket:
+      port: postgresql
+  startupProbe:
+    tcpSocket:
+      port: postgresql
+
+dbService:
+  name: demo-db
+  port: 5432
+
+appDeployment:
+  containers:
+    name: workload
+
+namespace: mavoyan
+
+cloudsql:
+  connectionName: capstoneproject-460317:europe-north1:mavoyan-private-mysql-instance

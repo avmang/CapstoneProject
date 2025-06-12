@@ -1,4 +1,5 @@
 name: CI/CD Pipeline
+
 on:
   push:
     branches:
@@ -15,20 +16,21 @@ env:
   GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   CLUSTER_NAME: ${{ secrets.CLUSTER_NAME }}
   HELM_RELEASE: petclinic
-  HELM_CHART_DIR: ./helm/petclinic
+  HELM_CHART_DIR: ~/helm
+  IMAGE_NAME: spring-petclinic
 
 jobs:
   build-and-tag:
     runs-on: ubuntu-latest
     outputs:
-        version: ${{ steps.tag.outputs.version }}
+      version: ${{ steps.tag.outputs.version }}
+      image: ${{ steps.build.outputs.image }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -41,7 +43,8 @@ jobs:
       - name: Generate Git Tag
         id: tag
         run: |
-            python semver_tag.py
+          VERSION=$(python semver_tag.py)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v1
@@ -54,51 +57,75 @@ jobs:
         run: |
           gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
 
-      - name: Build and Push Image
+      - name: Build and Push Docker Image
+        id: build
         run: |
-          IMAGE=${{ env.REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPO_ID }}/spring-petclinic
-          docker build -t $IMAGE:${{ steps.tag.outputs.version }} .
-          docker push $IMAGE:${{ steps.tag.outputs.version }}
+          IMAGE=${{ env.REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPO_ID }}/${{ env.IMAGE_NAME }}
+          VERSION=${{ steps.tag.outputs.version }}
+          docker build -t $IMAGE:$VERSION .
+          docker push $IMAGE:$VERSION
+          echo "image=$IMAGE" >> $GITHUB_OUTPUT
 
   deploy:
     runs-on: ubuntu-latest
     needs: build-and-tag
 
     steps:
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v1
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Debug Helm chart path
+        run: ls -la ./helm && ls -la ./helm/petclinic
+
+      - name: Copy Helm chart to VM
+        uses: appleboy/scp-action@v0.1.4
         with:
-          credentials_json: '${{ secrets.GOOGLE_CREDENTIALS }}'
+          host: ${{ secrets.VM_EXTERNAL_IP }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          source: "helm"
+          target: "~"
 
-      - name: Get GKE credentials
-        run: gcloud container clusters get-credentials $CLUSTER_NAME --region $REGION --project gd-gcp-internship-devops
+      - name: SSH into GCE and deploy Helm
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VM_EXTERNAL_IP }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          script: |
+            export CLUSTER_NAME=${{ env.CLUSTER_NAME }}
+            export REGION=${{ env.REGION }}
+            export GCP_PROJECT_ID=${{ env.GCP_PROJECT_ID }}
+            export HELM_RELEASE=${{ env.HELM_RELEASE }}
+            export HELM_CHART_DIR=~/helm/petclinic
+            export IMAGE=${{ needs.build-and-tag.outputs.image }}
+            export VERSION=${{ needs.build-and-tag.outputs.version }}
 
-      - name: Helm Upgrade
-        run: |
-          helm upgrade --install $HELM_RELEASE $HELM_CHART_DIR \
-            --set image.tag=${{ needs.build-and-tag.outputs.version }} \
-            --set image.repository=${{ env.REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.GAR_REPO_ID }}/spring-petclinic
+            echo "Authenticating to GKE..."
+            gcloud container clusters get-credentials $CLUSTER_NAME --region $REGION --project $GCP_PROJECT_ID
 
-      - name: Wait for External IP & Print App Link in Summary
-        run: |
-          echo "Waiting for external IP to become available..."
-          for i in {1..20}; do
-            NODE_IP=$(kubectl get svc $HELM_RELEASE --namespace mavoyan --output=jsonpath='{.status.loadBalancer.ingress[0].ip}')
-            if [[ -n "$NODE_IP" ]]; then
-              break
+            echo "Installing Ingress Controller (if needed)..."
+            helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+            helm repo update
+
+            if ! helm status ingress-nginx -n ingress-nginx > /dev/null 2>&1; then
+              helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
+                --namespace ingress-nginx --create-namespace
             fi
-            echo "Still waiting for external IP... ($i)"
-            sleep 10
-          done
 
-          if [[ -n "$NODE_IP" ]]; then
-            echo "App is available at: http://$NODE_IP"
-            echo "::notice title=App URL::http://$NODE_IP"
-            echo "Application Deployed" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "- App URL: [http://$NODE_IP](http://$NODE_IP)" >> $GITHUB_STEP_SUMMARY
-            echo "- Hostname (if mapped): [http://chart-example.local](http://chart-example.local)" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "Failed to retrieve external IP after waiting." >> $GITHUB_STEP_SUMMARY
-            exit 1
-          fi
+            echo "Waiting for Ingress IP..."
+            for i in {1..30}; do
+              INGRESS_IP=$(kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath="{.status.loadBalancer.ingress[0].ip}" 2>/dev/null || true)
+              if [[ -n "$INGRESS_IP" ]]; then break; fi
+              sleep 10
+            done
+
+            if [[ -z "$INGRESS_IP" ]]; then
+              echo "❌ Ingress controller did not get an external IP." >&2
+              exit 1
+            fi
+
+            echo "Deploying Helm chart with image $IMAGE:$VERSION"
+            helm upgrade --install $HELM_RELEASE $HELM_CHART_DIR
+
+            echo "✅ Application should be available soon at: http://$INGRESS_IP"

@@ -41,7 +41,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-
       # - name: SonarQube Scan
       #   env:
       #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
