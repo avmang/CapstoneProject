@@ -17,7 +17,7 @@ env:
   CLUSTER_NAME: ${{ secrets.CLUSTER_NAME }} 
   GKE_CLUSTER: mavoyan-cp-cluster
   HELM_RELEASE: petclinic
-  HELM_CHART_DIR: ~/helm
+  HELM_CHART_DIR: ./helm
   IMAGE_NAME: spring-petclinic
 
 jobs:
