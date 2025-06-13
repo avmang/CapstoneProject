@@ -76,13 +76,14 @@ jobs:
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v1
         with:
-          credentials_json: '${{ secrets.GOOGLE_CREDENTIALS }}'
+          credentials_json: '${{ secrets.GOOGLE_CREDENTIALS_GKE }}'
 
       - name: Set up GKE credentials
-        uses: google-github-actions/get-gke-credentials@v0
+        uses: google-github-actions/get-gke-credentials@v2
         with:
           cluster_name: ${{ env.GKE_CLUSTER }}
           location: ${{ env.REGION }}
+          project_id: ${{ env.GCP_PROJECT_ID }}
 
       - name: Deploy Helm
         run: |
@@ -101,9 +102,9 @@ jobs:
           helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
           helm repo update
 
-          helm install nginx ingress-nginx/ingress-nginx \
-            --namespace ingress-nginx --create-namespace \
-            --set controller.service.type=LoadBalancer
+          helm upgrade --install nginx ingress-nginx/ingress-nginx \
+          --namespace ingress-nginx --create-namespace \
+          --set controller.service.type=LoadBalancer
 
           helm install "$HELM_RELEASE" "$HELM_CHART_DIR/$HELM_RELEASE" \
           --set ingress.className=nginx
