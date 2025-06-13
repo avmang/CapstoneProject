@@ -109,7 +109,7 @@ jobs:
           # helm install "$HELM_RELEASE" "$HELM_CHART_DIR/$HELM_RELEASE" \
           # --set ingress.className=nginx
 
-          helm install petclinic ./helm/petclinic \
+          helm upgrade --install petclinic ./helm/petclinic \
           --set ingress.className=nginx
 
           echo "Waiting for Ingress IP..."
