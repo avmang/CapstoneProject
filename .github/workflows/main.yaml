@@ -14,7 +14,8 @@ env:
   REGION: ${{ secrets.GCP_REGION }}
   GAR_REPO_ID: ${{ secrets.GAR_REPO_ID }}
   GCP_PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-  CLUSTER_NAME: ${{ secrets.CLUSTER_NAME }}
+  CLUSTER_NAME: ${{ secrets.CLUSTER_NAME }} 
+  GKE_CLUSTER: mavoyan-cp-cluster
   HELM_RELEASE: petclinic
   HELM_CHART_DIR: ~/helm
   IMAGE_NAME: spring-petclinic
@@ -49,9 +50,7 @@ jobs:
       - name: Authenticate to GCP
         uses: google-github-actions/auth@v1
         with:
-          token_format: 'access_token'
-          workload_identity_provider: 'projects/999898490929/locations/global/workloadIdentityPools/github-pool/providers/github-provider'
-          service_account: 'mavoyan-github-actions@capstoneproject-460317.iam.gserviceaccount.com'
+          credentials_json: '${{ secrets.GOOGLE_CREDENTIALS }}'
 
       - name: Configure Docker for Artifact Registry
         run: |
@@ -74,58 +73,51 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Debug Helm chart path
-        run: ls -la ./helm && ls -la ./helm/petclinic
-
-      - name: Copy Helm chart to VM
-        uses: appleboy/scp-action@v0.1.4
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v1
         with:
-          host: ${{ secrets.VM_EXTERNAL_IP }}
-          username: ${{ secrets.VM_USER }}
-          key: ${{ secrets.VM_SSH_KEY }}
-          source: "helm"
-          target: "~"
+          credentials_json: '${{ secrets.GOOGLE_CREDENTIALS }}'
 
-      - name: SSH into GCE and deploy Helm
-        uses: appleboy/ssh-action@v1.0.0
+      - name: Set up GKE credentials
+        uses: google-github-actions/get-gke-credentials@v0
         with:
-          host: ${{ secrets.VM_EXTERNAL_IP }}
-          username: ${{ secrets.VM_USER }}
-          key: ${{ secrets.VM_SSH_KEY }}
-          script: |
-            export CLUSTER_NAME=${{ env.CLUSTER_NAME }}
-            export REGION=${{ env.REGION }}
-            export GCP_PROJECT_ID=${{ env.GCP_PROJECT_ID }}
-            export HELM_RELEASE=${{ env.HELM_RELEASE }}
-            export HELM_CHART_DIR=~/helm/petclinic
-            export IMAGE=${{ needs.build-and-tag.outputs.image }}
-            export VERSION=${{ needs.build-and-tag.outputs.version }}
+          cluster_name: ${{ env.GKE_CLUSTER }}
+          location: ${{ env.REGION }}
 
-            echo "Authenticating to GKE..."
-            gcloud container clusters get-credentials $CLUSTER_NAME --region $REGION --project $GCP_PROJECT_ID
+      - name: Deploy Helm
+        run: |
+          export CLUSTER_NAME=${{ env.CLUSTER_NAME }}
+          export REGION=${{ env.REGION }}
+          export GCP_PROJECT_ID=${{ env.GCP_PROJECT_ID }}
+          export HELM_RELEASE=${{ env.HELM_RELEASE }}
+          export HELM_CHART_DIR=~/helm/petclinic
+          export IMAGE=${{ needs.build-and-tag.outputs.image }}
+          export VERSION=${{ needs.build-and-tag.outputs.version }}
 
-            echo "Installing Ingress Controller (if needed)..."
-            helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
-            helm repo update
+          # echo "Authenticating to GKE..."
+          # gcloud container clusters get-credentials $CLUSTER_NAME --region $REGION --project $GCP_PROJECT_ID
 
-            if ! helm status ingress-nginx -n ingress-nginx > /dev/null 2>&1; then
-              helm upgrade --install ingress-nginx ingress-nginx/ingress-nginx \
-                --namespace ingress-nginx --create-namespace
-            fi
+          echo "Installing Ingress Controller (if needed)..." 
+          helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+          helm repo update
 
-            echo "Waiting for Ingress IP..."
-            for i in {1..30}; do
-              INGRESS_IP=$(kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath="{.status.loadBalancer.ingress[0].ip}" 2>/dev/null || true)
-              if [[ -n "$INGRESS_IP" ]]; then break; fi
-              sleep 10
-            done
+          helm install nginx ingress-nginx/ingress-nginx \
+            --namespace ingress-nginx --create-namespace \
+            --set controller.service.type=LoadBalancer
 
-            if [[ -z "$INGRESS_IP" ]]; then
-              echo "❌ Ingress controller did not get an external IP." >&2
-              exit 1
-            fi
+          helm install "$HELM_RELEASE" "$HELM_CHART_DIR/$HELM_RELEASE" \
+          --set ingress.className=nginx
 
-            echo "Deploying Helm chart with image $IMAGE:$VERSION"
-            helm upgrade --install $HELM_RELEASE $HELM_CHART_DIR
+          echo "Waiting for Ingress IP..."
+          for i in {1..30}; do
+            INGRESS_IP=$(kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath="{.status.loadBalancer.ingress[0].ip}" 2>/dev/null || true)
+            if [[ -n "$INGRESS_IP" ]]; then break; fi 
+            sleep 10
+          done
 
-            echo "✅ Application should be available soon at: http://$INGRESS_IP"
+          if [[ -z "$INGRESS_IP" ]]; then
+            echo "❌ Ingress controller did not get an external IP." >&2
+            exit 1
+          fi
+
+          echo "✅ Application should be available soon at: http://$INGRESS_IP"
