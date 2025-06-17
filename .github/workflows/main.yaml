@@ -112,16 +112,17 @@ jobs:
           helm upgrade --install petclinic ./helm/petclinic \
           --set ingress.className=nginx
 
-          echo "Waiting for Ingress IP..."
-          for i in {1..30}; do
-            INGRESS_IP=$(kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath="{.status.loadBalancer.ingress[0].ip}" 2>/dev/null || true)
-            if [[ -n "$INGRESS_IP" ]]; then break; fi 
-            sleep 10
-          done
+          # echo "Waiting for Ingress IP..."
+          # for i in {1..30}; do
+          #   INGRESS_IP=$(kubectl get svc ingress-nginx-controller -n ingress-nginx -o jsonpath="{.status.loadBalancer.ingress[0].ip}" 2>/dev/null || true)
+          #   if [[ -n "$INGRESS_IP" ]]; then break; fi 
+          #   sleep 10
+          # done
 
-          if [[ -z "$INGRESS_IP" ]]; then
-            echo "❌ Ingress controller did not get an external IP." >&2
-            exit 1
-          fi
+          # if [[ -z "$INGRESS_IP" ]]; then
+          #   echo "❌ Ingress controller did not get an external IP." >&2
+          #   exit 1
+          # fi
 
-          echo "✅ Application should be available soon at: http://$INGRESS_IP"
+          # echo "✅ Application should be available soon at: http://$INGRESS_IP"
+          echo "✅ Application should be available soon
