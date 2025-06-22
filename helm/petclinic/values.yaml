@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: europe-north1-docker.pkg.dev/capstoneproject-460317/mavoyan-spring-petclinic-repository/spring-petclinic
+  repository: europe-north1-docker.pkg.dev/gd-gcp-gridu-devops-t1-t2/mavoyan-spring-petclinic-repository/spring-petclinic
   # repository: avmang/spring-deploy-test
   pullPolicy: IfNotPresent
   tag: "0.1.0"
