@@ -75,6 +75,9 @@ jobs:
           cluster_name: ${{ env.GKE_CLUSTER }}
           location: ${{ env.REGION }}
           project_id: ${{ env.GCP_PROJECT_ID }}
+        
+      - name: Create namespace if not exists
+        run: kubectl get ns mavoyan || kubectl create namespace mavoyan
 
       - name: Install Helm chart
         run: |
