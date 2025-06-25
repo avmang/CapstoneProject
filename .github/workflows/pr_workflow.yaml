@@ -57,6 +57,12 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
+      - name: Code checking
+        run: mvn checkstyle:checkstyle
+      
+      - name: Code analysys
+        run: mvn pmd:pmd
+
       - name: Run Maven tests
         run: mvn test -Dspring.docker.compose.skip.in-tests=true
 
